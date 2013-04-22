@@ -58,6 +58,7 @@
 #
 #########################################################################################
 #
+# 0.0.2    BUGFIX: rss datetime
 # 0.0.1    added markup language support
 #          added sourcefiles feature [containing posts raw content]
 #          improved edit functionality
@@ -99,7 +100,7 @@ global_variables() {
     #~ Directories
     global_post_directory=""
     global_temp_directory="/tmp/"
-    global_temp_prefix=".bbm-"
+    global_temp_prefix=".bbj-"
     global_template_directory="drafts/"
     
     #~ Autobackup
@@ -107,7 +108,7 @@ global_variables() {
     
     # Applications info
     global_software_name="BashBlogJunior"
-    global_software_version="0.0.1"
+    global_software_version="0.0.2"
 
     # Blog title
     global_title="Blog Title"
@@ -119,7 +120,7 @@ global_variables() {
     # Your name
     global_author="Blog Author"
     # You can use twitter or facebook or anything for global_author_url
-    global_author_url="http://example.com/bijan" 
+    global_author_url="http://example.com/authur" 
     # Your email
     global_email="author@example.com"
 
@@ -506,6 +507,7 @@ rebuild_all() {
 	rebuild_rss=$4
 	rebuild_css=$5
 	current_timestamp="$(date +'%Y/%m/%d %k:%M')"
+	current_rss_timestamp="$(date -R)"
 	
 	if [ "$1" == "yes" ] || [ "$2" == "yes" ] || [ "$3" == "yes" ] || [ "$4" == "yes" ]; then
 		counter=0
@@ -547,12 +549,13 @@ rebuild_all() {
 			if [ "$4" == "yes" ]; then
 				if [ "$counter" -ge "$number_of_feed_articles" ]; then break; fi
 				index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
+				rss_single_post_date=$(date -r "$sourcefile" -R)
 				rss_single_content="<item><title>$single_post_title</title>"
-				rss_single_content="$rss_single_content <description><![CDATA[$single_post_content]]></description>"
+				rss_single_content="$rss_single_content <description><![CDATA[$index_single_post_content]]></description>"
 				rss_single_content="$rss_single_content <link>$global_url/$single_post_url</link>"
 				rss_single_content="$rss_single_content <guid>$global_url/$single_post_url</guid>"
 				rss_single_content="$rss_single_content <dc:creator>$global_author</dc:creator>"
-				rss_single_content="$rss_single_content <pubDate>$single_post_date</pubDate></item>"
+				rss_single_content="$rss_single_content <pubDate>$rss_single_post_date</pubDate></item>"
 				rss_content="$rss_content $rss_single_content"
 			fi
 			
@@ -587,8 +590,8 @@ rebuild_all() {
 		<title>$global_title</title>
 		<link>$global_url</link>
 		<description>$global_description</description><language>en</language>
-		<lastBuildDate>$current_timestamp</lastBuildDate>
-		<pubDate>$current_timestamp</pubDate>
+		<lastBuildDate>$current_rss_timestamp</lastBuildDate>
+		<pubDate>$current_rss_timestamp</pubDate>
 		<atom:link href='$global_url/$blog_feed' rel='self' type='application/rss+xml' />
 		$rss_content
 	</channel>
