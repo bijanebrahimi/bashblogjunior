@@ -21,7 +21,7 @@
 #
 # Files that this script generates:
 #	- main.css (inherited from Carles Fenollosa page) and blog.css (blog-specific stylesheet)
-#	- one .html for each post
+#	- one .html and .$markup_language_ext for each post
 #	- index.html (regenerated each run)
 # 	- feed.rss (regenerated each run)
 #	- all_posts.html (regenerated each run)
@@ -58,6 +58,11 @@
 #
 #########################################################################################
 #
+# 0.0.3    remove entry option added
+#          new global variable
+#          huge code refactors
+#          license file added
+#          better output messages
 # 0.0.2    BUGFIX: rss datetime
 # 0.0.1    added markup language support
 #          added sourcefiles feature [containing posts raw content]
@@ -78,12 +83,13 @@ usage() {
 	echo "Commands:"
 	echo "    init               creates initial files in the current path"
 	echo "    post [sourcefile]  insert a new blog post, or the SOURCEFILE of a Template to continue editing it"
-	echo "    edit [sourcefile]    edit an already created SOURCEFILE"
+	echo "    edit [sourcefile]  edit an already created SOURCEFILE"
+	echo "    rm   [sourcefile]  remove blog entry"
 	echo "    rebuild [option]   regenerates all/specific pages"
 	echo "                       option=[index|archive|posts|rss|css]"
 	echo "    reset              deletes blog-generated files. Use with a lot of caution and back up first!"
 	echo "    list               list all entries. Useful for debug"
-	echo "    backup [output]     backup sourcefiles"
+	echo "    backup [output]    backup sourcefiles"
 	echo ""
 	echo "For more information please open $0 in a code editor and read the header and comments"
 }
@@ -97,31 +103,33 @@ global_variables() {
     global_markdown_cmd="$global_markdown_application --html4tags"
     global_markdown_extension="md"
     
+    #~ Editor
+    global_editor="/bin/nano"
+    
     #~ Directories
     global_post_directory=""
-    global_temp_directory="/tmp/"
-    global_temp_prefix=".bbj-"
-    global_template_directory="drafts/"
+    global_tmp_directory="/tmp/"
+    global_tmp_prefix=".bbj-"
+    
+    #~ Template
+    global_tmplate_directory="templates/"
     
     #~ Autobackup
     global_autobackup="no"
+    global_backup_date_format="%Y-%m-%d"
     
     # Applications info
     global_software_name="BashBlogJunior"
-    global_software_version="0.0.2"
+    global_software_version="0.0.3"
 
-    # Blog title
+    # Blog information
     global_title="Blog Title"
-    # The typical subtitle for each blog
     global_description="Blog Description"
-    # The public base URL for this blog
     global_url="http://example.com/"
 
-    # Your name
+    # Author information
     global_author="Blog Author"
-    # You can use twitter or facebook or anything for global_author_url
     global_author_url="http://example.com/authur" 
-    # Your email
     global_email="author@example.com"
 
     # CC by-nc-nd is a good starting point, you can change this to "&copy;" for Copyright
@@ -143,12 +151,9 @@ global_variables() {
     global_social_text="Leave your Comments on Identi.ca"
 
     # Blog generated files
-    # index page of blog (it is usually good to use "index.html" here)
     index_file="index.html"
     number_of_index_articles="8"
-    # global archive
     archive_index="archive.html"
-    # feed file (rss in this case)
     blog_feed="feed.rss"
     number_of_feed_articles="20"
 
@@ -163,8 +168,8 @@ global_variables() {
     # "Subscribe to this page..." (used as text for browser feed button that is embedded to html)
     template_subscribe_browser_button="Subscribe to this page..."
     # The locale to use for the dates displayed on screen (not for the timestamps)
-    date_format="%B %d, %Y"
-    date_locale="C"
+    global_date_format="%B %d, %Y"
+    global_date_locale="C"
 }
 
 # generates templates
@@ -183,7 +188,7 @@ create_html_header() {
 		<meta http-equiv="Content-type" content="text/html;charset=UTF-8" />
 		<link rel="stylesheet" href="main.css" type="text/css" />
 		<link rel="stylesheet" href="blog.css" type="text/css" />
-		<link rel="alternate" type="application/rss+xml" title="'$template_subscribe_browser_button'" href="'$feed_url'" />
+		<link rel="alternate" type="application/rss+xml" title="$template_subscribe_browser_button" href="$feed_url" />
 		$google_analytics_code
 EOF
 }
@@ -209,7 +214,7 @@ google_analytics() {
     echo "<script type=\"text/javascript\">
 
     var _gaq = _gaq || [];
-    _gaq.push(['_setAccount', '"$global_analytics"']);
+    _gaq.push(['_setAccount', '$global_analytics']);
     _gaq.push(['_trackPageview']);
 
     (function() {
@@ -227,7 +232,7 @@ reset() {
     read line
     if [ "$line" == "Yes, I am!" ]; then
         rm *.html *.$global_markdown_extension *.rss *.css 2>/dev/null
-        echo "Deleted all posts, stylesheets and feeds."
+        echo "Deleted all the posts, stylesheets and feed."
     else
         echo "Phew! You dodged a bullet there. Nothing was modified."
     fi
@@ -241,21 +246,21 @@ initial() {
 
 backup() {
 	if [ "$1" == "" ]; then
-		backup_output=".backup-$(date +'%Y-%m-%d')"
+		backup_output=".backup-$(date +"$global_backup_date_format")"
 	else
 		backup_output="$1"
 	fi
-	echo -n "moving source files to $backup_output.tar.gz ... "
-	tar cfz "$backup_output.tar.gz" *.$global_markdown_extension
+	echo "copying source files to $backup_output.tar.gz"
+	tar cvfz "$backup_output.tar.gz" *.$global_markdown_extension
 	echo "finished"
 }
 
 # Displays a list of the posts
 list_posts() {
-	sourcelist=$(ls -t $global_post_directory*.$global_markdown_extension)
+	srcfile_lists=$(ls -t $global_post_directory*.$global_markdown_extension)
 	list="No#TITLE#SOURCE\n"
 	counter=1
-	for sourcefile in $sourcelist; do
+	for sourcefile in $srcfile_lists; do
 		single_post_title=$(cat $sourcefile | head -n 1)
 		list="$list$counter#$single_post_title#$sourcefile\n"
 		counter=$(( $counter + 1 ))
@@ -278,15 +283,54 @@ initial_check() {
 		echo "   mkdir $global_post_directory"
 		exit
 	fi
-	if [[ ! -z "$global_temp_directory" ]] && [[ ! -d "$global_temp_directory" ]]; then
+	if [[ ! -z "$global_tmp_directory" ]] && [[ ! -d "$global_tmp_directory" ]]; then
 		echo "Temp directory is missing"
-		echo "   mkdir $global_temp_directory"
+		echo "   mkdir $global_tmp_directory"
 		exit
 	fi
-	if [[ ! -z "$global_template_directory" ]] && [[ ! -d "$global_template_directory" ]]; then
+	if [[ ! -z "$global_tmplate_directory" ]] && [[ ! -d "$global_tmplate_directory" ]]; then
 		echo "Drafts directory is missing"
-		echo "   mkdir $global_template_directory"
+		echo "   mkdir $global_tmplate_directory"
 		exit
+	fi
+}
+
+# date functions
+template_prefix() {
+	date +"%Y-%m-%d-%H-%M-%d"
+}
+modification_date() {
+	if [ -f "$1" ]; then
+		date -R -r "$1"
+	else
+		date -R
+	fi
+}
+formatted_date() {
+	LC_ALL="$global_date_locale"
+	date -d "$1" +"$2"
+}
+
+# Removes existing blog entry
+# 
+# $1      existing source file
+remove_entry() {
+	if [ ! -f "$1" ]; then
+		echo "source file doesn't exist"
+		exit
+	fi
+	srcfile="$1"
+	htmlfile=$(echo "$srcfile" | sed 's/.'$global_markdown_extension'/.html/g')
+	
+	echo -n "Do you want to remove this entry? (y/N) "
+	read remove_status
+	if [ "$remove_status" == "y" ] || [ "$remove_status" == "Y" ]; then
+		rm "$srcfile" "$htmlfile" 2>/dev/null
+		echo "removing $srcfile ..."
+		echo "removing $htmlfile ..."
+		rebuild_interactive "do you want to rebuild the pages? (y/N)" "yes" "yes" "no" "yes" "no"
+	else
+		echo "nothing removed"
 	fi
 }
 
@@ -296,71 +340,70 @@ initial_check() {
 # $1      [existing] source file
 # $2      edit mode
 write_entry() {
-    if [ "$1" != "" ]; then
-        TMPFILE="$1"
-        if [ ! -f "$TMPFILE" ]; then
+	if [ "$1" != "" ]; then
+        SRCFILE="$1"
+        if [ ! -f "$SRCFILE" ]; then
             echo "The template doesn't exist"
             exit
         elif [ "$2" == "yes" ]; then
-			#~ Only make parse_file not to find a unique filename_html_unique
-			disable_finding_unique_name="yes"
-			current_sourcefile_timestamp=$(date -r "$1")
+			edit_mode="yes"
+			current_srcfile_modification_date=$(modification_date "$SRCFILE")
+			#~ disable_finding_unique_name="yes"
         fi
     else
-        TMPFILE="${global_temp_directory}${global_temp_prefix}entry-$RANDOM"
-        echo "one-line Post Title" >> "$TMPFILE"
-        echo "" >> "$TMPFILE"
-        echo "Your ${global_markup} content Here" >> "$TMPFILE"
+        SRCFILE="${global_tmp_directory}${global_tmp_prefix}entry-$RANDOM"
+        echo "One Line Post Title" >> "$SRCFILE"
+        echo "" >> "$SRCFILE"
+        echo "Your ${global_markup} Content Here" >> "$SRCFILE"
     fi
 
     post_status="B"
     while [ "$post_status" != "p" ] && [ "$post_status" != "P" ]; do
-		$EDITOR "$TMPFILE"
-		if [ "$disable_finding_unique_name" == "yes" ]; then
-			touch -d "$current_sourcefile_timestamp" "$TMPFILE"
+		$EDITOR "$SRCFILE" 2>/dev/null
+		if [ "$edit_mode" == "yes" ]; then
+			touch -d "$current_srcfile_modification_date" "$SRCFILE"
 		fi
-        parse_file "$TMPFILE" # this command sets $filename as the html processed file
-        chmod 600 "$filename_html_unique"
+        parse_file "$SRCFILE"
+        chmod 600 "$htmlfile_unique_name"
 
         echo -n "Preview? (Y/n) "
-        read p
-        if [ "$p" != "n" ] && [ "$p" != "N" ]; then
-            chmod 644 "$filename_html_unique"
-            echo "Open $global_url$global_post_directory$filename_html_unique in your browser"
+        read preview
+        if [ "$preview" != "n" ] && [ "$preview" != "N" ]; then
+            chmod 644 "$htmlfile_unique_name"
+            echo "Open $global_url$global_post_directory$htmlfile_unique_name in your browser"
         fi
-        #~ FIX: change Draft to Template
-        echo -n "[P]ost this entry, [B]ack to editor, [T]emplate, [E]xit? (p/B/t/e) "
+        
+        echo -n "[P]ost this entry, [B]ack to editor, [T]emplate it, [E]xit? (p/B/t/e) "
         read post_status
         if [ "$post_status" == "e" ] || [ "$post_status" == "E" ]; then
+			echo "Rebuild the indexes manually if you want the last changes take effect"
 			exit
         fi
         if [ "$post_status" == "t" ] || [ "$post_status" == "T" ]; then
-			rm "$filename_html_unique"
-			TIME=$(date +"%Y-%m-%d-%H-%M-%S")
-			templatename="$global_template_directory$TIME-$filename_markup_unique"
-			mv "$filename_markup_unique" "$templatename"
-			chmod 600 "$templatename"
-			echo -e "\tto continue Editing: "
-			echo -e "\t$0 post $templatename"
-			exit
-        fi
-        if [ "$post_status" == "p" ] || [ "$post_status" == "P" ]; then
-			chmod 644 "$filename_html_unique"
-			echo -n "Post Created. Automatically Rebuild the indexes? (Y/n) "
-			rebuild_status="y"
-			read rebuild_status
-			if [ "$rebuild_status" != "n" ] && [ "$rebuild_status" != "N" ]; then
-				echo "Rebuilding Index & Archive & Posts & RSS "
-				rebuild_all "yes" "yes" "yes" "yes" "no"
+			srcfile_template_prefix=$(template_prefix)
+			srcfile_template="$global_tmplate_directory$srcfile_template_prefix-$srcfile_unique_name"
+			cp "$srcfile_unique_name" "$srcfile_template"
+			chmod 600 "$srcfile_template"
+			echo -e "Template created [$srcfile_template]"
+			echo -n "Do you want to remove the source file? (Y/n) "
+			read template_status
+			if [ "$template_status" != "n" ] && [ "$template_status" != "N" ]; then
+				rm "$htmlfile_unique_name" "$srcfile_unique_name" 2>/dev/null
+				rebuild_interactive "Rebuild the indexes? (Y/n) " "yes" "yes" "no" "yes" "no"
 			fi
 			exit
         fi
-        if [ "$disable_finding_unique_name" != "yes" ]; then
-			rm "$filename_html_unique"
-			NEW_TMPFILE="$global_temp_directory$global_temp_prefix$RANDOM.$global_markdown_extension"
-			mv "$filename_markup_unique" "$NEW_TMPFILE"
-			chmod 600 "$NEW_TMPFILE"
-			TMPFILE=$NEW_TMPFILE
+        if [ "$post_status" == "p" ] || [ "$post_status" == "P" ]; then
+			chmod 644 "$htmlfile_unique_name"
+			rebuild_interactive "Post Created. Automatically Rebuild the indexes? (Y/n) "  "yes" "yes" "yes" "yes" "no"
+			exit
+        fi
+        if [ "$edit_mode" != "yes" ]; then
+			rm "$htmlfile_unique_name"
+			NEW_SRCFILE="$global_tmp_directory$global_tmp_prefix$RANDOM.$global_markdown_extension"
+			mv "$srcfile_unique_name" "$NEW_SRCFILE"
+			chmod 600 "$NEW_SRCFILE"
+			SRCFILE=$NEW_SRCFILE
 		fi
     done
 }
@@ -370,40 +413,29 @@ parse_file() {
     # Read for the title and check that the filename is ok
     title=""
     content=""
-    filename_markup_unique="$TMPFILE"
-	filename_html_unique=$(echo "$TMPFILE" | sed 's/.'$global_markdown_extension'/.html/g')
-	#~ echo "$disable_finding_unique_name $TMPFILE $filename_markup_unique $filename_html_unique"
-	#~ exit
-    while read line; do
-        if [ "$title" == "" ]; then
-            title="$line"
-            if [ "$disable_finding_unique_name" != "yes" ]; then
-				filename="$(echo $title | tr [:upper:] [:lower:])"
-				filename="$(echo $filename | sed 's/\ /-/g')"
-				filename="$(echo $filename | tr -dc '[:alnum:]-')" # html likes alphanumeric
-				
-				filename_markup="$global_post_directory$filename.$global_markdown_extension"
-				filename_html="$global_post_directory$filename.html"
-				
-				# Check for duplicate file names
-				suffix=1
-				filename_markup_unique=$filename_markup
-				filename_html_unique=$filename_html
-				while [ -f "$filename_html_unique" ]; do
-					echo 
-					suffix=$(echo "$suffix + 1" | bc)
-					filename_markup_unique="$(echo $filename_markup | sed 's/.'$global_markdown_extension'/'-$suffix'.'$global_markdown_extension'/g')"
-					filename_html_unique="$(echo $filename_html | sed 's/.html/'-$suffix'.html/g')"
-				done
-            fi
-        fi
-        if [ "$disable_finding_unique_name" != "yes" ]; then
-			echo "$line" >> "$filename_markup_unique"
-		fi
-    done < "$TMPFILE"
+    title=$(head -n 1 "$SRCFILE")
+	if [ "$edit_mode" != "yes" ]; then
+		filename="$(echo $title | tr [:upper:] [:lower:])"
+		filename="$(echo $filename | sed 's/\ /-/g')"
+		filename="$(echo $filename | tr -dc '[:alnum:]-')" # html likes alphanumeric
+		srcfile_unique_name="$global_post_directory$filename.$global_markdown_extension"
+		srcfile_name=$srcfile_unique_name
+		suffix=1
+		#~ BUG: what if the title was index?
+		while [ -f "$srcfile_unique_name" ]; do
+			suffix=$(( $suffix + 1 ))
+			srcfile_unique_name="$(echo $srcfile_name | sed 's/.'$global_markdown_extension'/'-$suffix'.'$global_markdown_extension'/g')"
+		done
+	else
+		srcfile_unique_name="$SRCFILE"
+	fi
+	htmlfile_unique_name=$(echo "$srcfile_unique_name" | sed 's/.'$global_markdown_extension'/.html/g')
+	if [ "$edit_mode" != "yes" ]; then
+		cat "$SRCFILE" > "$srcfile_unique_name"
+	fi
 
     # Create the actual html page
-    create_html_page "$filename_markup_unique" "$filename_html_unique" no "$title"
+    create_html_page "$srcfile_unique_name" "$htmlfile_unique_name" "no" "$title"
 }
 
 # Create html files from source files
@@ -412,20 +444,20 @@ parse_file() {
 # $3     "yes" if we want to generate the index.html,
 #        "no" to insert new blog posts
 # $4     title for the html header
-# $5     optional original blog date [YYYY/MM/DD[ HH:MM]]
+# $5     optional original blog date
 create_html_page() {
-	content=$(tail -n +1 "$1" | $global_markdown_cmd)
-    output="$2"
-    url="$output"
-    index="$3"
-    title="$4"
-    timestamp="$5"
+	html_content=$(tail -n +2 "$1" | $global_markdown_cmd)
+    html_output="$2"
+    html_url="$output"
+    html_index="$3"
+    html_title="$4"
+    html_timestamp="$5"
     if [ "$timestamp" == "" ]; then
-		timestamp=$(date -r "$1" +"%Y/%m/%d %H:%M")
+		html_timestamp=$(modification_date "$1")
     fi
     
-    generate_html_page "$content" "$url" "$index" "$title" "$timestamp" > "$output"
-    touch -d "$timestamp" "$output"
+    generate_html_page "$html_content" "$html_url" "$html_index" "$html_title" "$html_timestamp" > "$html_output"
+    touch -d "$html_timestamp" "$html_output"
 }
 
 # Generates page html content
@@ -436,18 +468,18 @@ create_html_page() {
 # $4     title for the html header
 # $5     blog date
 generate_html_page() {
-    content=$1
-    file_url="$2"
-    index="$3"
-    title="$4"
-    blog_date="$5"
+    page_content=$1
+    page_url="$2"
+    page_index="$3"
+    page_title="$4"
+    page_date="$5"
     
     single_post_header=""
     single_post_footer=""
     
     if [ "$index" == "no" ]; then
-		date=$(LC_ALL=date_locale date -d "$blog_date" +"$date_format")
-		single_post_header="<h3><a class='ablack' href='$global_url$file_url'>$title</a></h3><div class='subtitle'>$date &mdash; $global_author</div>"
+		page_formatted_date=$(formatted_date "$page_date" "$global_date_format")
+		single_post_header="<h3><a class='ablack' href='$global_url$page_url'>$page_index</a></h3><div class='subtitle'>$page_formatted_date &mdash; $global_author</div>"
 		#~ FIX: comment section
 		single_post_footer="<div id='post_footer $global_social_name'><div id='post_footer'><a href='$global_url'>$template_archive_index_page</a>"
 		if [ "$global_social" = "yes" ]; then
@@ -459,12 +491,11 @@ generate_html_page() {
     html_header=$(create_html_header)
     html_footer=$(create_html_footer)
     html_title=$(create_html_title)
-    #~ FIX: google_analytics
-    #~ html_google_analytics=google_analytics
+    html_google_analytics=$(google_analytics)
     
     cat << EOF
 $html_header
-<title>$title</title>
+<title>$page_title</title>
 $html_google_analytics
 </head>
 <body>
@@ -481,7 +512,7 @@ $html_google_analytics
 				<!-- entry begin -->
 				$single_post_header
 				<!-- text begin -->
-				$content
+				$page_content
 				<!-- text end -->
 				$single_post_footer
 				<!-- entry end -->
@@ -495,68 +526,66 @@ EOF
 }
 
 # Rebuild all resources
-# $1      index [yes/no]
-# $2      archive [yes/no]
-# $3      entries [yes/no]
-# $4      rss [yes/no]
-# $5      css [yes/no]
+# $1      index [yes/NO]
+# $2      archive [yes/NO]
+# $3      entries [yes/NO]
+# $4      rss [yes/NO]
+# $5      css [yes/NO]
 rebuild_all() {
 	rebuild_index=$1
 	rebuild_archive=$2
 	rebuild_entries=$3
 	rebuild_rss=$4
 	rebuild_css=$5
-	current_timestamp="$(date +'%Y/%m/%d %k:%M')"
-	current_rss_timestamp="$(date -R)"
+	current_date=$(modification_date)
 	
 	if [ "$1" == "yes" ] || [ "$2" == "yes" ] || [ "$3" == "yes" ] || [ "$4" == "yes" ]; then
-		counter=0
+		counter=1
 		index_content=""
 		archive_content=""
 		rss_content=""
-		sourcelist=$(ls -t $global_post_directory*.$global_markdown_extension)
-		for sourcefile in $sourcelist; do
-			echo -e "\t$sourcefile"
+		srcfile_lists=$(ls -t $global_post_directory*.$global_markdown_extension)
+		for sourcefile in $srcfile_lists; do
+			echo -e "    $sourcefile"
 			
-			single_post_url=$(echo $sourcefile | sed "s/$global_markdown_extension\$/html/")
-			single_post_title=$(cat $sourcefile | head -n 1)
-			single_post_timestamp="$(date -r $sourcefile +'%Y/%m/%d %k:%M')"
-			single_post_date=$(LC_ALL=date_locale date -d "$single_post_timestamp" +"$date_format")
-			single_post_title=$(cat $sourcefile | head -n 1)
+			single_post_url=$(echo "$sourcefile" | sed "s/$global_markdown_extension\$/html/")
+			single_post_title=$(head -n 1 "$sourcefile")
+			single_post_date=$(modification_date "$sourcefile")
+			single_post_formatted_date=$(formatted_date "$single_post_date" "$global_date_format")
 			
 			#~ Rebuild Index
 			if [ "$1" == "yes" ]; then
-				if [ "$counter" -ge "$number_of_index_articles" ]; then break; fi
-				index_single_post_header="<h3><a class='ablack' href='$global_url$single_post_url'>$single_post_title</a></h3><div class='subtitle'>$single_post_date &mdash; $global_author</div>"
-				index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
-				index_content="$index_content $index_single_post_header $index_single_post_content"
+				if [ "$counter" -le "$number_of_index_articles" ]; then
+					index_single_post_header="<h3><a class='ablack' href='$global_url$single_post_url'>$single_post_title</a></h3><div class='subtitle'>$single_post_formatted_date &mdash; $global_author</div>"
+					index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
+					index_content="$index_content $index_single_post_header $index_single_post_content"
+				fi
 			fi
 			
 			#~ Rebuild archive
 			if [ "$2" == "yes" ]; then
-				archive_content="$archive_content <li><a href='$global_url$single_post_url'>$single_post_title</a> &mdash; $single_post_date</li>"
+				archive_content="$archive_content <li><a href='$global_url$single_post_url'>$single_post_title</a> &mdash; $single_post_formatted_date</li>"
 			fi
 			
 			#~ Rebuild entries
 			if [ "$3" == "yes" ]; then
-				#~ create_html_page "$sourcefile" "$single_post_url" no "$single_post_title"
 				index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
-				generate_html_page "$index_single_post_content" "$single_post_url" "no" "$single_post_title" "$single_post_date" > "$single_post_url"
+				generate_html_page "$index_single_post_content" "$single_post_url" "no" "$single_post_title" "$single_post_formatted_date" > "$single_post_url"
 				chmod 644 "$single_post_url"
 			fi
 			
 			#~ Rebuild RSS
 			if [ "$4" == "yes" ]; then
-				if [ "$counter" -ge "$number_of_feed_articles" ]; then break; fi
-				index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
-				rss_single_post_date=$(date -r "$sourcefile" -R)
-				rss_single_content="<item><title>$single_post_title</title>"
-				rss_single_content="$rss_single_content <description><![CDATA[$index_single_post_content]]></description>"
-				rss_single_content="$rss_single_content <link>$global_url/$single_post_url</link>"
-				rss_single_content="$rss_single_content <guid>$global_url/$single_post_url</guid>"
-				rss_single_content="$rss_single_content <dc:creator>$global_author</dc:creator>"
-				rss_single_content="$rss_single_content <pubDate>$rss_single_post_date</pubDate></item>"
-				rss_content="$rss_content $rss_single_content"
+				if [ "$counter" -le "$number_of_feed_articles" ]; then
+					rss_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
+					rss_single_content="<item><title>$single_post_title</title>"
+					rss_single_content="$rss_single_content <description><![CDATA[$rss_single_post_content]]></description>"
+					rss_single_content="$rss_single_content <link>$global_url/$single_post_url</link>"
+					rss_single_content="$rss_single_content <guid>$global_url/$single_post_url</guid>"
+					rss_single_content="$rss_single_content <dc:creator>$global_author</dc:creator>"
+					rss_single_content="$rss_single_content <pubDate>$single_post_date</pubDate></item>"
+					rss_content="$rss_content $rss_single_content"
+				fi
 			fi
 			
 			counter=$(( $counter + 1 ))
@@ -570,7 +599,7 @@ rebuild_all() {
 		else
 			index_content="$index_content <div id='post_footer'><a href='$archive_index'>$template_archive</a> &mdash; <a href='$global_feedburner'>Subscribe</a></div>"
 		fi
-		generate_html_page "$index_content" "$single_post_url" "yes" "$global_title" "$current_timestamp" > "$index_file"
+		generate_html_page "$index_content" "$single_post_url" "yes" "$global_title" "$current_date" > "$index_file"
 		chmod 644 "$index_file"
     fi
     
@@ -590,8 +619,8 @@ rebuild_all() {
 		<title>$global_title</title>
 		<link>$global_url</link>
 		<description>$global_description</description><language>en</language>
-		<lastBuildDate>$current_rss_timestamp</lastBuildDate>
-		<pubDate>$current_rss_timestamp</pubDate>
+		<lastBuildDate>$current_date</lastBuildDate>
+		<pubDate>$current_date</pubDate>
 		<atom:link href='$global_url/$blog_feed' rel='self' type='application/rss+xml' />
 		$rss_content
 	</channel>
@@ -604,6 +633,20 @@ EOF
     if [ "$5" == "yes" ]; then
 		create_css
     fi
+}
+
+# Rebuild blog content interactively
+rebuild_interactive() {
+	if [ "$1" == "" ]; then
+		1="Rebuild the blog contents?"
+	fi
+	echo -n "$1"
+	read rebuild_status
+	if [ "$rebuild_status" != "n" ] && [ "$rebuild_status" != "N" ]; then
+		echo "Rebuilding ... "
+		rebuild_all "$2" "$3" "$4" "$5" "$6"
+		echo "finished!"
+	fi
 }
 
 # Create the css file from scratch
@@ -666,15 +709,15 @@ do_main() {
 
     # Check for $EDITOR
     if [[ -z "$EDITOR" ]]; then
-        if [[ ! -x /bin/nano ]]; then
+        if [[ ! -x "$global_editor" ]]; then
 			echo "Please set your \$EDITOR environment variable"
 			exit
 		fi
-		EDITOR="nano"
+		EDITOR="$global_editor"
     fi
 	
     # Check for validity of argument
-    if [ "$1" != "init" ] && [ "$1" != "reset" ] && [ "$1" != "backup" ] && [ "$1" != "post" ] && [ "$1" != "rebuild" ] && [ "$1" != "list" ] && [ "$1" != "edit" ]; then 
+    if [ "$1" != "rm" ] && [ "$1" != "init" ] && [ "$1" != "reset" ] && [ "$1" != "backup" ] && [ "$1" != "post" ] && [ "$1" != "rebuild" ] && [ "$1" != "list" ] && [ "$1" != "edit" ]; then 
         usage; exit; 
     fi
     
@@ -714,6 +757,7 @@ do_main() {
 			rebuild_all "yes" "yes" "yes" "yes" "yes"
 		fi
 	fi
+    if [ "$1" == "rm" ]; then remove_entry "$2"; fi
     if [ "$1" == "reset" ]; then reset; fi
     if [ "$1" == "list" ]; then list_posts; fi
     if [ "$1" == "backup" ]; then backup "$2"; fi
