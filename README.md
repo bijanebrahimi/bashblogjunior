@@ -27,6 +27,11 @@ Blog Directories Configuration
     global_temp_prefix=".bbj-"
     global_template_directory="drafts/"
 
+Disqus Commenting System
+
+	global_disqus_shortname
+
+
 ## Manual
 
 To see the Manual usage just run the script without any arguments
@@ -36,14 +41,15 @@ To see the Manual usage just run the script without any arguments
     Usage: ./bbj.sh command [filename]
     
     Commands:
-        init               creates initial files in the current path
-        post [sourcefile]  insert a new blog post, or the SOURCEFILE of a Template to continue editing it
-        edit [sourcefile]    edit an already created SOURCEFILE
-        rebuild [option]   regenerates all/specific pages
-                           option=[index|archive|posts|rss|css]
-        reset              deletes blog-generated files. Use with a lot of caution and back up first!
-        list               list all entries. Useful for debug
-        backup [output]     backup sourcefiles
+		init               creates initial files in the current path
+		post [sourcefile]  insert a new blog post, or the SOURCEFILE of a Template to continue editing it
+		edit [sourcefile]  edit an already created SOURCEFILE
+		rm   [sourcefile]  remove blog entry
+		rebuild [option]   regenerates all/specific pages
+						   option=[index|archive|posts|rss|css]
+		reset              deletes blog-generated files. Use with a lot of caution and back up first!
+		list               list all entries. Useful for debug
+		backup [output]    backup sourcefiles
     
     For more information please open ./bbj.sh in a code editor and read the header and comments
 
@@ -87,6 +93,11 @@ you can edit an antry by padding **edit** and name of the  Source/Template file.
     $ ./bbj.sh edit bashblog-improved.md
 
 don't forget to rebuild the files after changing an entry
+
+### Remove
+
+you can delete the post by using remove option. after varification, it deletes the post source file and html file and
+offers you to do automatic rebuild. it is the best way to delete an unwanted post.
 
 ### Backup
 

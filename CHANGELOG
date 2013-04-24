@@ -1,0 +1,23 @@
+0.1.0	added disqus for commenting system
+		support for break-content. in index only the post's short text will be shown
+		CHANGELOG file added
+		code refactors
+		some html rewrites
+
+0.0.3	remove entry option added
+		new global variable
+		huge code refactors
+		license file added
+		better output messages
+
+0.0.2	BUGFIX: rss datetime
+
+0.0.1	added markup language support
+		added sourcefiles feature [containing posts raw content]
+		improved edit functionality
+		sequentially file names for duplicated titles
+		added manual backup menu
+		code refactoring
+		general functional improvements
+		new stylesheet
+		default EDITOR and some other small changes

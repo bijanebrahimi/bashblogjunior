@@ -4,77 +4,6 @@
 # Authur: Bijan Ebrahimi <BijanEbrahimi@lavabit.com>
 # Original Authur: Carles Fenollosa <carles.fenollosa@bsc.es>
 
-#########################################################################################
-#
-# README
-#
-#########################################################################################
-#
-# This is a very basic blog system
-#
-# Basically it asks the user to create a sourcefile written in any markup language,
-# then converts it into a .html file and then rebuilds the index.html and feed.rss.
-#
-# Comments are not supported.
-#
-# This script is standalone, it doesn't require any other file to run
-#
-# Files that this script generates:
-#	- main.css (inherited from Carles Fenollosa page) and blog.css (blog-specific stylesheet)
-#	- one .html and .$markup_language_ext for each post
-#	- index.html (regenerated each run)
-# 	- feed.rss (regenerated each run)
-#	- all_posts.html (regenerated each run)
-# 	- it also generates temporal files, which are mostly removed afterwards
-#
-# It generates valid html and rss files, so keep care to use valid xhtml when editing a post
-#
-# posts, drafts and temporary files can be generated in WEB ROOT directory or in a 
-# user specific direcroty. files in temporary directory never deletes so it's a good idea
-# to use /tmp.
-
-#########################################################################################
-#
-# LICENSE
-#
-#########################################################################################
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-#########################################################################################
-#
-# CHANGELOG
-#
-#########################################################################################
-#
-# 0.0.3    remove entry option added
-#          new global variable
-#          huge code refactors
-#          license file added
-#          better output messages
-# 0.0.2    BUGFIX: rss datetime
-# 0.0.1    added markup language support
-#          added sourcefiles feature [containing posts raw content]
-#          improved edit functionality
-#          sequentially file names for duplicated titles
-#          added manual backup menu
-#          code refactoring
-#          general functional improvements
-#          new stylesheet
-#          default EDITOR and some other small changes
-
-
 # Displays the help
 usage() {
 	echo "$global_software_name v$global_software_version"
@@ -120,7 +49,8 @@ global_variables() {
     
     # Applications info
     global_software_name="BashBlogJunior"
-    global_software_version="0.0.3"
+    global_software_version="0.1.0"
+    global_software_url="https://github.com/bijanebrahimi/bashblogjunior"
 
     # Blog information
     global_title="Blog Title"
@@ -138,17 +68,13 @@ global_variables() {
     # If you have a Google Analytics ID (UA-XXXXX), put it here.
     # If left empty (i.e. "") Analytics will be disabled
     global_analytics=""
-
+	
+	# DISQUS
+	global_disqus_shortname=''
+	
     # Leave this empty (i.e. "") if you don't want to use feedburner, 
     # or change it to your own URL
     global_feedburner=""
-
-    # Leave these empty if you don't want to use twitter for comments
-    global_social="yes"
-    global_social_name="identica"
-    global_social_username="bijan"
-    global_social_url="https://identi.ca/bijan"
-    global_social_text="Leave your Comments on Identi.ca"
 
     # Blog generated files
     index_file="index.html"
@@ -167,6 +93,7 @@ global_variables() {
     template_subscribe="Subscribe"
     # "Subscribe to this page..." (used as text for browser feed button that is embedded to html)
     template_subscribe_browser_button="Subscribe to this page..."
+    template_read_more="Continue Reading ..."
     # The locale to use for the dates displayed on screen (not for the timestamps)
     global_date_format="%B %d, %Y"
     global_date_locale="C"
@@ -195,7 +122,11 @@ EOF
 create_html_footer() {
 	protected_mail="$(echo "$global_email" | sed 's/@/\&#64;/g' | sed 's/\./\&#46;/g')"
 	cat << EOF
-<div id="footer">$global_license <a href="$global_author_url">$global_author</a> &mdash; <a href="mailto:$protected_mail">$protected_mail</a></div>
+<div id="footer">
+	$global_license <a href="$global_author_url">$global_author</a> &mdash; <a href="mailto:$protected_mail">$protected_mail</a><br>
+	<i><a href='$global_url'>$global_title</a><i> is powered by <i><a href='$global_software_url'>$global_software_name $global_software_version</a></i>
+</div>
+
 EOF
 }
 create_html_title() {
@@ -205,6 +136,23 @@ create_html_title() {
 	</h1>
 	<div id="description">$global_description</div>
 EOF
+}
+
+# retrieve Post Contents
+get_srcfile_title() {
+	head -n 1 "$1" 2>/dev/null
+}
+get_srcfile_short_text() {
+	line_breaker_regex="<!\-\- (.*) \-\->"
+	get_srcfile_full_text "$1" | while read line; do
+		if [[ $line =~ $line_breaker_regex ]]; then
+			break
+		fi
+		echo "$line"
+	done
+}
+get_srcfile_full_text() {
+	tail -n +2 "$1" 2>/dev/null
 }
 
 # Prints the required google analytics code
@@ -238,12 +186,16 @@ reset() {
     fi
 }
 
+# Create CSS files
 initial() {
 	echo -n "Initializing  ... "
 	rebuild_all "no" "no" "no" "no" "yes"
 	echo "finished"
 }
 
+# Backup Sourcefiles
+#
+# $1      backup file name, if nothing passed global_backup_date_format will be used
 backup() {
 	if [ "$1" == "" ]; then
 		backup_output=".backup-$(date +"$global_backup_date_format")"
@@ -334,6 +286,26 @@ remove_entry() {
 	fi
 }
 
+# Disqus
+disqus() {
+	cat <<EOF
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+	/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+	var disqus_shortname = '$global_disqus_shortname'; // required: replace example with your forum shortname
+
+	/* * * DON'T EDIT BELOW THIS LINE * * */
+	(function() {
+		var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+		dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+		(document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	})();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+EOF
+}
+
 # Manages the creation/editing of the sourcefile and the parsing to html file
 # also the drafts
 # 
@@ -355,6 +327,10 @@ write_entry() {
         echo "One Line Post Title" >> "$SRCFILE"
         echo "" >> "$SRCFILE"
         echo "Your ${global_markup} Content Here" >> "$SRCFILE"
+        echo "" >> "$SRCFILE"
+        echo "<!-- Content Breaker -->" >> "$SRCFILE"
+        echo "" >> "$SRCFILE"
+        echo "Continue ..." >> "$SRCFILE"
     fi
 
     post_status="B"
@@ -411,10 +387,10 @@ write_entry() {
 # Parse the plain text file into an html file
 parse_file() {
     # Read for the title and check that the filename is ok
-    title=""
     content=""
-    title=$(head -n 1 "$SRCFILE")
-	if [ "$edit_mode" != "yes" ]; then
+    title=$(get_srcfile_title "$SRCFILE")
+    #~ title=$(head -n 1 "$SRCFILE")
+    if [ "$edit_mode" != "yes" ]; then
 		filename="$(echo $title | tr [:upper:] [:lower:])"
 		filename="$(echo $filename | sed 's/\ /-/g')"
 		filename="$(echo $filename | tr -dc '[:alnum:]-')" # html likes alphanumeric
@@ -446,7 +422,8 @@ parse_file() {
 # $4     title for the html header
 # $5     optional original blog date
 create_html_page() {
-	html_content=$(tail -n +2 "$1" | $global_markdown_cmd)
+	html_content=$(get_srcfile_full_text "$1" | $global_markdown_cmd)
+	#~ html_content=$(tail -n +2 "$1" | $global_markdown_cmd)
     html_output="$2"
     html_url="$output"
     html_index="$3"
@@ -477,13 +454,12 @@ generate_html_page() {
     single_post_header=""
     single_post_footer=""
     
-    if [ "$index" == "no" ]; then
+    if [ "$page_index" == "no" ]; then
 		page_formatted_date=$(formatted_date "$page_date" "$global_date_format")
-		single_post_header="<h3><a class='ablack' href='$global_url$page_url'>$page_index</a></h3><div class='subtitle'>$page_formatted_date &mdash; $global_author</div>"
-		#~ FIX: comment section
-		single_post_footer="<div id='post_footer $global_social_name'><div id='post_footer'><a href='$global_url'>$template_archive_index_page</a>"
-		if [ "$global_social" = "yes" ]; then
-			single_post_footer="$single_post_footer &mdash; <a href='$global_social_url'>$global_social_text</a></div>"
+		single_post_header="<h3><a class='ablack' href='$page_url'>$page_title</a></h3><div class='subtitle'>$page_formatted_date &mdash; $global_author</div>"
+		single_post_footer="<div id='post_footer'><a href='$global_url'>$template_archive_index_page</a>"
+		if [ "$global_disqus_shortname" != "" ]; then
+			single_post_footer="$single_post_footer$(disqus)"
 		fi
 		single_post_footer="$single_post_footer </div>"
     fi
@@ -540,36 +516,37 @@ rebuild_all() {
 	current_date=$(modification_date)
 	
 	if [ "$1" == "yes" ] || [ "$2" == "yes" ] || [ "$3" == "yes" ] || [ "$4" == "yes" ]; then
-		counter=1
+		counter=0
 		index_content=""
 		archive_content=""
 		rss_content=""
 		srcfile_lists=$(ls -t $global_post_directory*.$global_markdown_extension)
 		for sourcefile in $srcfile_lists; do
+			counter=$(( $counter + 1 ))
 			echo -e "    $sourcefile"
 			
 			single_post_url=$(echo "$sourcefile" | sed "s/$global_markdown_extension\$/html/")
-			single_post_title=$(head -n 1 "$sourcefile")
+			single_post_title=$(get_srcfile_title "$sourcefile")
 			single_post_date=$(modification_date "$sourcefile")
 			single_post_formatted_date=$(formatted_date "$single_post_date" "$global_date_format")
 			
 			#~ Rebuild Index
 			if [ "$1" == "yes" ]; then
 				if [ "$counter" -le "$number_of_index_articles" ]; then
-					index_single_post_header="<h3><a class='ablack' href='$global_url$single_post_url'>$single_post_title</a></h3><div class='subtitle'>$single_post_formatted_date &mdash; $global_author</div>"
-					index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
-					index_content="$index_content $index_single_post_header $index_single_post_content"
+					index_single_post_header="<h3><a class='ablack' href='$single_post_url'>$single_post_title</a></h3><div class='subtitle'>$single_post_formatted_date &mdash; $global_author</div>"
+					index_single_post_content=$(get_srcfile_short_text "$sourcefile" | $global_markdown_cmd)
+					index_content="$index_content $index_single_post_header $index_single_post_content <div class='continue'><a href='$single_post_url'>$template_read_more</a></div>"
 				fi
 			fi
 			
 			#~ Rebuild archive
 			if [ "$2" == "yes" ]; then
-				archive_content="$archive_content <li><a href='$global_url$single_post_url'>$single_post_title</a> &mdash; $single_post_formatted_date</li>"
+				archive_content="$archive_content <li><a href='$single_post_url'>$single_post_title</a> &mdash; $single_post_formatted_date</li>"
 			fi
 			
 			#~ Rebuild entries
 			if [ "$3" == "yes" ]; then
-				index_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
+				index_single_post_content=$(get_srcfile_full_text "$sourcefile" | $global_markdown_cmd)
 				generate_html_page "$index_single_post_content" "$single_post_url" "no" "$single_post_title" "$single_post_formatted_date" > "$single_post_url"
 				chmod 644 "$single_post_url"
 			fi
@@ -577,7 +554,7 @@ rebuild_all() {
 			#~ Rebuild RSS
 			if [ "$4" == "yes" ]; then
 				if [ "$counter" -le "$number_of_feed_articles" ]; then
-					rss_single_post_content=$(tail -n +2 "$sourcefile" | $global_markdown_cmd)
+					rss_single_post_content=$(get_srcfile_full_text "$sourcefile" | $global_markdown_cmd)
 					rss_single_content="<item><title>$single_post_title</title>"
 					rss_single_content="$rss_single_content <description><![CDATA[$rss_single_post_content]]></description>"
 					rss_single_content="$rss_single_content <link>$global_url/$single_post_url</link>"
@@ -587,15 +564,13 @@ rebuild_all() {
 					rss_content="$rss_content $rss_single_content"
 				fi
 			fi
-			
-			counter=$(( $counter + 1 ))
 		done
     fi
     
     #~ Save Index
     if [ "$1" == "yes" ]; then
 		if [ "$global_feedburner" == "" ]; then
-			index_content="$index_content <div id='post_footer'><a href='$archive_index'>View more posts</a> &mdash; <a href='$blog_feed'>$template_subscribe</a></div>"
+			index_content="$index_content <div id='post_footer'><a href='$archive_index'>$template_archive ($counter)</a> &mdash; <a href='$blog_feed'>$template_subscribe</a></div>"
 		else
 			index_content="$index_content <div id='post_footer'><a href='$archive_index'>$template_archive</a> &mdash; <a href='$global_feedburner'>Subscribe</a></div>"
 		fi
@@ -621,7 +596,7 @@ rebuild_all() {
 		<description>$global_description</description><language>en</language>
 		<lastBuildDate>$current_date</lastBuildDate>
 		<pubDate>$current_date</pubDate>
-		<atom:link href='$global_url/$blog_feed' rel='self' type='application/rss+xml' />
+		<atom:link href='$global_url$blog_feed' rel='self' type='application/rss+xml' />
 		$rss_content
 	</channel>
 </rss>
@@ -660,6 +635,7 @@ a.ablack{color:black !important;}
 li{margin-bottom:8px;}
 ul,ol{margin-left:24px;margin-right:24px;}
 #post_footer{margin-top:24px;text-align:center;}
+.continue{margin:0px 12px;text-align:right;}
 .subtitle{font-size:small;margin:12px 0px;color:#999;position:relative;top:-10px;}
 .content p{margin-left:24px;margin-right:24px;}
 h1{margin-bottom:12px !important;}
