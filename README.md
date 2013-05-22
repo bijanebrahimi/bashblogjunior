@@ -1,11 +1,11 @@
 BashBlogJuniour
 ============
 
-an imporovement for bashblog script with markup language support like Markdown and many new features
+An improvement for bashblog script with markup language support like Markdown and many new features
 
 ## Usage
 
-Download the script and run it.
+Download the script and run it
 
     $ ./bbj.sh
 
@@ -55,14 +55,14 @@ To see the Manual usage just run the script without any arguments
 
 ### Initial
 
-Initial the blog by passing the **init** argument. it simply create two CSS files in the current directory.
+Initialize the blog by passing the **init** argument. This simply create two CSS files in the current directory.
 
     $ ./bbj.sh init
     Initializing  ... finished
 
 ### Reset
 
-to delete all the auto-generated files, pass the **reset** argument. it removes all the files created by the script.
+To delete all the auto-generated files, pass the **reset** argument. This removes all the files created by the script.
 
     $ ./bbj.sh reset
     Are you sure you want to delete all blog entries? Please write "Yes, I am!"
@@ -70,38 +70,31 @@ to delete all the auto-generated files, pass the **reset** argument. it removes 
 
 ### Post
 
-to create a new post pass the **post** argument. by default nano will be opened. you can change it in the script.
-type in your first post content and close the EDITOR. the first line is the blog title and re rest will be
-it's content. save the document and close the editor. the rest is interactive. you can choose to view a preview
-and decide Whether it needs furthur improvements or not. when finished, post it by pressing **P**. next is to rebuild
-the index, archive and rss feed pages. the script asks you to rebuild them automatically after posting new entry although you can do it manually, see **rebuild**.
-you can [download](bashblog-improved.md) this post markdown sourcefile to see how it works 
+To create a new post pass the **post** argument. By default, nano will be opened. You can change this in the script.
+Type in your first post content and close the editor. The first line is the blog title and rest will be its content. Save the document and close the editor. The rest is interactive. You can choose to view a preview and decide whether it needs further improvements or not. When finished, post it by pressing **P**. Next is to rebuild the index, archive, and RSS feed pages. The script asks you to rebuild them automatically after posting new entry (although you can do it manually, see **rebuild**).
+You can [download](bashblog-improved.md) this post markdown sourcefile to see how it works 
 
 ### Rebuild
 
-you cna also rebuild the files manually by passing the **rebuild** argument. without any more argument, it
-rebuilds all the files necessary. but you can choose to rebuild specific files. look at the usage section for more details.
+You can also rebuild the files manually by passing the **rebuild** argument. Without any more argument, it rebuilds all the files necessary. but you can choose to rebuild specific files. Look at the usage section for more details.
 
     $ ./bbj.sh rebuild
     $ ./bbj.sh rebuild css
 
 ### Edit
 
-you can edit an antry by padding **edit** and name of the  Source/Template file. if you're using the default markup
-, the sourcefiles extensions will be **.md**
+You can edit an entry by passing **edit** and name of the source/template file. If you're using the default markup, the sourcefiles extensions will be **.md**
 
     $ ./bbj.sh edit bashblog-improved.md
 
-don't forget to rebuild the files after changing an entry
+Don't forget to rebuild the files after changing an entry
 
 ### Remove
 
-you can delete the post by using remove option. after varification, it deletes the post source file and html file and
-offers you to do automatic rebuild. it is the best way to delete an unwanted post.
+You can delete the post by using **remove** option. After verification, it deletes the post source file and html file and offers you to do automatic rebuild. This is the best way to delete an unwanted post.
 
 ### Backup
 
-the only files you nedd to keep it in your backup is the markup language source files. use backup to store them
-or do it manually. later you can use the rebuild command to build the html files from markdown files.
+The only files you nedd to keep it in your backup is the markup language source files. Use **backup** to store them or do it manually. Later you can use the rebuild command to build the html files from markdown files.
 
 
