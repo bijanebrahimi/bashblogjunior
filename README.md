@@ -5,9 +5,9 @@ an imporovement for bashblog script with markup language support like Markdown a
 
 ## Usage
 
-Downlaod the script and give it execution permission
+Download the script and run it.
 
-    $ chmod +x bbj.sh
+    $ ./bbj.sh
 
 ## Configuration
 
