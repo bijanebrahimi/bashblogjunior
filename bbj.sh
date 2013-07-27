@@ -188,7 +188,7 @@ reset() {
 
 # Create CSS files
 initial() {
-	echo -n "Initializing  ... "
+	echo "Initializing  ... "
 	rebuild_all "no" "no" "no" "no" "yes"
 	echo "finished"
 }
