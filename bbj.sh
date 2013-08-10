@@ -188,7 +188,7 @@ reset() {
 
 # Create CSS files
 initial() {
-	echo -n "Initializing  ... "
+	echo "Initializing  ... "
 	rebuild_all "no" "no" "no" "no" "yes"
 	echo "finished"
 }
@@ -626,9 +626,12 @@ rebuild_interactive() {
 
 # Create the css file from scratch
 create_css() {
-    # To avoid overwriting manual changes. However it is recommended that
-    # this function is modified if the user changes the blog.css file.
-    # blog.css directives will be loaded after main.css and thus will prevail
+    # If the blog.css and main.css files do not exist, create them
+    # Do not overwrite them though, to avoid smashing people's local changes
+    if [ -f "blog.css" ]
+    then
+        echo "The file blog.css exists, not overwriting"
+    else
         cat > "blog.css" << EOF
 #title{font-size: x-large;}
 a.ablack{color:black !important;}
@@ -654,8 +657,12 @@ h4{margin-left:24px;margin-right:24px;}
 .content ul{list-style-type: disc;}
 .content img{width: 400px;padding: 1px;border: 1px solid #4D4D4D;}
 EOF
-
-		cat > "main.css" << EOF
+    fi
+    if [ -f "main.css" ]
+    then
+        echo "The file main.css exists, not overwriting"
+    else
+        cat > "main.css" << EOF
 body{font-family:Georgia,"Times New Roman",Times,serif;margin:0;padding:0;background-color:#F3F3F3;}
 #divbodyholder{padding:5px;background-color:#DDD;width:874px;margin:24px auto;}
 #divbody{width:776px;border:solid 1px #ccc;background-color:#fff;padding:0px 48px 24px 48px;top:0;}
@@ -673,6 +680,7 @@ blockquote{font-style:italic;background-color:#f9f9f9;border:1px solid #e9e9e9;b
 blockquote img{margin:12px 0px;}
 blockquote iframe{margin:12px 0px;}
 EOF
+    fi
 }
 
 # Main function
