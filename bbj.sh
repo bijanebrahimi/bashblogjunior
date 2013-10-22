@@ -467,12 +467,10 @@ generate_html_page() {
     html_header=$(create_html_header)
     html_footer=$(create_html_footer)
     html_title=$(create_html_title)
-    html_google_analytics=$(google_analytics)
     
     cat << EOF
 $html_header
 <title>$page_title</title>
-$html_google_analytics
 </head>
 <body>
 	<div id="divbodyholder">
